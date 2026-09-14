@@ -63,7 +63,10 @@ class _OnnxEmbedder:
     def __init__(self):
         from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
 
-        self._ef = ONNXMiniLM_L6_V2()
+        # CoreML (onnxruntime's default provider on macOS) crashes on some
+        # Macs when running this model. CPU is slower but reliable, and
+        # embedding 80-ish chunks is fast either way.
+        self._ef = ONNXMiniLM_L6_V2(preferred_providers=["CPUExecutionProvider"])
 
     def encode(self, texts, show_progress_bar: bool = False):
         return [vector.tolist() for vector in self._ef(list(texts))]
@@ -198,6 +201,12 @@ def search(
         raise RuntimeError(
             f"No index called '{name}'. Run `python app.py index` first."
         ) from exc
+
+    if collection.count() == 0:
+        raise RuntimeError(
+            f"Index '{name}' exists but is empty — the last `python app.py "
+            f"index` run didn't finish. Run it again."
+        )
 
     raw = collection.query(
         query_embeddings=embed([question]),
