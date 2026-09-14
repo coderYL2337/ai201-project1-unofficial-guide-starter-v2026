@@ -97,7 +97,78 @@ def split_documents(documents: list[Document]) -> list[Chunk]:
       - Would splitting on paragraph breaks keep more thoughts intact than
         splitting on a character count?
     """
-    return fallback_split(documents)
+    return paragraph_split(documents)
+
+
+def paragraph_split(
+    documents: list[Document],
+    chunk_size: int | None = None,
+) -> list[Chunk]:
+    """
+    campus_life's own chunker: group paragraphs, don't slice characters.
+
+    Every document here is short enough (178-549 characters) that
+    `fallback_split`'s 800-character window never fires — one post already
+    comes out as one chunk. The problem `fallback_split` doesn't catch is that
+    several posts hold more than one thought as separate paragraphs (a title,
+    a description, then a "the good" / "the bad" pair) with nothing to force
+    them apart.
+
+    This splits on blank-line paragraph breaks and merges consecutive
+    paragraphs until adding the next one would push a chunk past
+    `chunk_size`. That keeps a lone heading from becoming its own
+    near-empty chunk (the failure mode fixed-size slicing hits on
+    `advice_threads`), while still letting a long, multi-topic post separate
+    into pieces that each answer one question. No character overlap is
+    needed — every split falls on a paragraph boundary, never mid-sentence.
+
+    One extra rule earned its way in after testing on this corpus: several
+    posts open with a short title paragraph ("On the housing lottery")
+    immediately followed by one long paragraph that alone exceeds
+    `chunk_size`. Without a floor, the title would flush on its own — a
+    22-character chunk nobody could answer a question from. `MIN_CHUNK_SIZE`
+    forces a chunk to reach a minimum length before it's allowed to close,
+    even if that means going over `chunk_size` once.
+    """
+    MIN_CHUNK_SIZE = 80
+
+    chunk_size = chunk_size or config.CHUNK_SIZE
+    chunks: list[Chunk] = []
+
+    for doc in documents:
+        paragraphs = [p.strip() for p in doc.text.split("\n\n") if p.strip()]
+        if not paragraphs:
+            continue
+
+        index = 0
+        current: list[str] = []
+        current_len = 0
+
+        def flush():
+            nonlocal index
+            if not current:
+                return
+            chunks.append(
+                Chunk(
+                    text="\n\n".join(current),
+                    source=doc.source,
+                    index=index,
+                    produced_by="chunker.py::split_documents",
+                )
+            )
+            index += 1
+            current.clear()
+
+        for para in paragraphs:
+            over_size = current and current_len + len(para) + 2 > chunk_size
+            if over_size and current_len >= MIN_CHUNK_SIZE:
+                flush()
+                current_len = 0
+            current.append(para)
+            current_len += len(para) + 2
+        flush()
+
+    return chunks
 
 
 def describe(chunks: list[Chunk]) -> str:

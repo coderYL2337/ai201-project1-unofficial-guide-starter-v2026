@@ -31,54 +31,85 @@
 
 ## Chunking Strategy
 
-**Chunk size:**
-**Overlap:**
+**Chunk size:** 350 characters (used as a paragraph-merge cap, not a fixed slice width)
+**Overlap:** 0
 
-<!-- What about YOUR documents made you pick these numbers? Short posts and
-     long sectioned guides don't want the same chunking, and "800 seemed
-     reasonable" earns nothing. Point at something you noticed when you read
-     the documents in Milestone 1.
+The starter's `fallback_split` cuts at 800 characters, but every `campus_life`
+post is 178-549 characters — under that window, so it never actually splits
+anything: 88 documents in, 88 chunks out. That's not nothing, though. Several
+posts hold more than one thought as separate paragraphs — a title, a
+description, then a "the good" / "the bad" pair (see `housing_morrow_house.txt`
+below) — and merging them all into one chunk means a question about just the
+"bad" part is answered by a chunk that's a third irrelevant.
 
-     If you changed your mind partway through, say so and say why. That's worth
-     more than pretending you got it right first time.
+My chunker (`chunker.py::split_documents`, calling the new `paragraph_split`)
+splits on blank-line paragraph breaks and merges consecutive paragraphs until
+the next one would push the chunk past 350 characters. 350 is roughly the
+length of two or three of these short paragraphs together — big enough to hold
+a title with its first paragraph, small enough that a distinct "good"/"bad"
+split still separates out in longer posts. No overlap, because splits land on
+paragraph boundaries already, never mid-sentence — there's no risk of cutting
+a thought in half for overlap to patch over.
 
-     Milestone 3. -->
+One thing I changed after testing: a strict 350-character cap on its own
+turned a handful of short title paragraphs ("On the housing lottery") into
+their own 22-character chunk, because the paragraph right after them was long
+enough to blow the cap. I added a 80-character floor — a chunk won't close
+until it's at least that long, even if that means going over 350 once — which
+removed every fragment under 71 characters without merging unrelated posts
+together.
+
+Result: 115 chunks from 88 documents, averaging 242 characters (shortest 71,
+longest 397) — versus 88 chunks averaging 317 characters under the starter's
+fallback.
 
 ## Sample Chunks
 
-<!-- Five chunks, pasted as text. Label each one and name the file it came from
-     AND the function that produced it — the grader checks your code against
-     what you claim here.
-
-     `python app.py chunks -n 5` prints all three for you. Copy them straight
-     across.
-
-     Milestone 3. -->
-
-**Chunk 1** — source: `` — produced by: ``
+**Chunk 1** — source: `admin_add_drop_deadline.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+On the add/drop deadline
+
+You can add a course through the end of the second week. Dropping is a longer window — through the end of week six — but a drop after week two shows as a W on your transcript. Nothing anywhere on the registrar's site says this plainly, and students find out from each other.
 ```
 
-**Chunk 2** — source: `` — produced by: ``
+**Chunk 2** — source: `course_cs_210_exams.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+CS 210 Data Structures — assessment
+
+Two midterms and a final, all drawn from lecture material rather than the textbook. Midterms are curved, the final is not.
+
+Do the labs even though they're only 10% — the exams reuse the lab problems.
 ```
 
-**Chunk 3** — source: `` — produced by: ``
+**Chunk 3** — source: `course_phys_130.txt#1` — produced by: `chunker.py::split_documents`
 
 ```
+The one piece of advice: the lab practical is worth 20% and almost nobody prepares for it.
 ```
 
-**Chunk 4** — source: `` — produced by: ``
+**Chunk 4** — source: `dining_the_ridgeway_cafe_followup.txt#1` — produced by: `chunker.py::split_documents`
 
 ```
+Also worth saying: seating is tight; about 40 seats for a building of 900. Nobody tells you this at orientation.
 ```
 
-**Chunk 5** — source: `` — produced by: ``
+**Chunk 5** — source: `housing_morrow_house.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+Morrow House — what it's actually like
+
+Just finished a year in this building. Built 1954, partially renovated 2008. Rooms are singles and doubles, hall bathrooms.
+
+The good: cheapest housing tier by about $900 a year, and the singles are real singles.
+
+The bad: known damp problem on the ground floor; two rooms were taken offline in 2024.
 ```
+
+Each of these stands on its own: chunk 1 is a complete rule with its caveat,
+chunk 3 is one full piece of advice, and chunk 5 is a title plus two full
+topics — none is a sentence cut in half, and none is a title stranded alone.
 
 ## Sample Answer
 
