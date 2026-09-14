@@ -113,30 +113,37 @@ topics — none is a sentence cut in half, and none is a title stranded alone.
 
 ## Sample Answer
 
-<!-- One complete question and answer, pasted as text, with the source line
-     visible. Milestone 4. -->
-
 **Question:**
+"By what week can I still declare a pass/fail option?"
 
 **Answer:**
 
-```
-```
+You can declare the pass/fail option as late as week eight, after you've seen your midterm. This comes from `admin_pass_fail_option.txt`.
+
+Sources retrieved: admin_add_drop_deadline.txt, admin_pass_fail_option.txt, admin_withdrawal_deadline.txt, course_biol_160.txt, course_cs_340.txt
 
 **My relevance cutoff:**
 
-<!-- The number you set in config.py, and how you got there.
-
-     You ran five questions your corpus covers and the five in OUT_OF_SCOPE
-     that it clearly doesn't, and wrote down the best distance for each. What
-     did those two groups look like? Where was the gap? Put the actual numbers
-     here — the table below wants all ten rows.
-
-     Milestone 4. -->
+I set `THRESHOLD = 0.6` in `config.py`. I ran the five questions from
+`QUESTIONS` and the five from `OUT_OF_SCOPE` through `store.search` and
+recorded the best (lowest) distance for each. Every in-corpus question came
+back under 0.39; every out-of-corpus question came back over 0.82 — a clean
+gap of more than 0.4 with nothing in between. 0.6 sits in the middle of that
+gap rather than near either edge, so a slightly harder in-scope question or a
+slightly closer out-of-scope one both still land on the correct side.
 
 | Question | In corpus? | Best distance |
 |---|---|---|
-|  |  |  |
+| What are the wait times at Kestrel Commons during lunch? | Yes | 0.173 |
+| How much printing quota does each student get per semester? | Yes | 0.308 |
+| By what week can I still declare a pass/fail option? | Yes | 0.358 |
+| What happens on my transcript if I drop a course after week two? | Yes | 0.254 |
+| Are CS 210 exams based on the textbook or on lecture material? | Yes | 0.387 |
+| What is the capital of Mongolia? | No | 0.825 |
+| How do I change the oil in a diesel engine? | No | 0.934 |
+| Who won the 1994 World Cup? | No | 0.874 |
+| What is the recommended dosage of ibuprofen for a headache? | No | 0.840 |
+| How do I write a for loop in Rust? | No | 0.891 |
 
 ## How I Used AI
 
