@@ -22,12 +22,14 @@
 
 ## What This Does
 
-<!-- Three or four sentences. Which corpus you picked, and the kinds of
-     questions your system answers. Write it for someone who has never seen
-     this repo.
-
-     Milestone 5. -->
-     
+This is a question-answering system over `campus_life`, a corpus of 88 short
+posts written by students about dorms, dining halls, courses, and the
+administrative rules nobody explains properly (add/drop deadlines, pass/fail,
+printing quotas, the housing lottery). Ask it something like "what are the
+wait times at Kestrel Commons during lunch?" or "by what week can I declare
+pass/fail?" and it retrieves the post that actually answers it, refuses to
+answer questions the corpus doesn't cover (like general trivia or other
+schools' policies), and always names the source file its answer came from.
 
 ## Chunking Strategy
 
@@ -147,18 +149,29 @@ slightly closer out-of-scope one both still land on the correct side.
 
 ## How I Used AI
 
-<!-- Two specific moments. For each: what you asked for, what came back, and
-     what you changed about it.
+**1.** `python app.py index` was silently leaving an empty index behind, and
+`python app.py ask` then crashed with `TypeError: Number of requested results
+0, cannot be negative, or zero.` I asked Copilot what happened. It re-ran
+indexing directly (not through `ask`) and found the real error underneath:
+`onnxruntime`'s CoreML execution provider was crashing on my Intel Mac while
+embedding, which left `build_index` failing partway through and the Chroma
+collection created-but-empty. It fixed this by pinning `_OnnxEmbedder` to
+`preferred_providers=["CPUExecutionProvider"]` in `store.py`, skipping CoreML
+entirely. I kept that fix as given, and also asked it to add a check in
+`store.search()` that raises a clear error on an empty index — the original
+`TypeError` gave no hint that the actual problem was upstream in indexing.
 
-     "I asked Claude to write the chunking function from my notes. It ignored
-     the overlap, so I added that myself" is the level of detail we're after.
-     "I used AI to help me code" is not.
-
-     Milestone 5. -->
-
-**1.**
-
-**2.**
+**2.** I asked Copilot to replace `campus_life`'s chunker with a paragraph-
+aware strategy instead of the fixed 800-character window, since none of my
+documents are long enough for that window to ever fire. Its first version
+grouped paragraphs up to a 350-character cap, but testing it against
+`admin_housing_lottery.txt` turned up a bad case it hadn't caught: a short
+title paragraph ("On the housing lottery") followed by one long paragraph
+that alone exceeds 350 characters, so the title flushed as its own
+22-character chunk. I had it add an 80-character floor so a chunk can't close
+until it reaches that length, even if that means going over 350 once. I then
+checked the shortest chunk in the corpus myself (71 characters) to confirm
+the fragment was actually gone rather than just hidden.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
