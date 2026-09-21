@@ -298,34 +298,60 @@ complete trailing sentence as a failure.
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** In `chunker.py::paragraph_split`, raised `MIN_CHUNK_SIZE`
+from 80 to 150, and added a check to the final `flush()` call: if a
+document's last paragraph closes under `MIN_CHUNK_SIZE`, it now merges
+backward into the chunk before it instead of standing alone as its own short
+chunk.
 
-**Why I picked it:**
-
-<!-- Connect it to a specific diagnosis above in one sentence. If you can't,
-     you picked a fix because it sounded impressive. -->
+**Why I picked it:** This is the exact mechanism the Diagnoses section named
+for the one miss (criterion 4) — the floor only guarded a chunk from closing
+*early* while a following paragraph still had to be merged in; it never
+applied to a document's *last* paragraph, which always flushed regardless of
+length. Every one of the 23 too-short chunks was that trailing paragraph, so
+fixing the floor to also catch that case addresses the whole miss with one
+change, rather than patching each short chunk individually.
 
 ### Run Log — After
 
-<!-- Same format, same five criteria, three runs each.
-     `python run_eval.py --label after` -->
+Full run log: [`results/run_2026-09-21_0058_after.md`](results/run_2026-09-21_0058_after.md),
+same format as the "before" run — `run_eval.py::main` for criteria 1, 2, 5,
+`run_eval.py::check_out_of_scope` for criterion 3. Corpus was re-chunked and
+re-indexed (`python app.py index`) with the fixed `chunker.py::paragraph_split`
+before this run.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5 of 5 | 5 of 5 | 5 of 5 | MET |
+| 2. Every answer names a source | 5 of 5 | 5 of 5 | 5 of 5 | 5 of 5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5 of 5 | 5 of 5 | 5 of 5 | MET |
+| 4. No chunk shorter than 150 / longer than 600 chars, ≥4 of 5 sampled read as a complete thought | 0 chunks outside 150–600 | 0 chunks outside 150–600 | (same — deterministic) | (same — deterministic) | MET |
+| 5. Source attribution is correct, not just present | 4 of 5 | 5 of 5 | 5 of 5 | 5 of 5 | MET |
+
+**Criterion 4, real output** — re-running `chunker.py::split_documents` after
+the fix: 92 chunks from 88 documents, averaging 303 characters, shortest
+**157**, longest **461** (down from 115 chunks, shortest 71). No chunk is
+outside the 150–600 range any more, and the merged chunks (e.g.
+`dining_kestrel_commons.txt#0`, now 369 characters, holding both the wait
+times and the hours/cost paragraph in one piece) still read as complete
+thoughts — merging two already-complete paragraphs together didn't cut
+anything in half.
 
 **Did it help?**
 
-<!-- Say plainly whether it did, and how you know. If it made things worse,
-     say that — a change that backfired, honestly reported, earns full credit
-     and is more interesting than one that worked. What matters is that you can
-     tell.
-
-     Milestone 4. -->
+Yes, on the one criterion it targeted, and it didn't cost anything on the
+other four. Criterion 4 goes from MISSED (shortest chunk 71 characters) to
+MET (shortest chunk 157, longest 461, zero chunks outside 150–600).
+Criteria 1, 2, 3, and 5 stay at 5 of 5 across all three after-runs, same as
+before — retrieval still returns the right document for every question (now
+as a single merged chunk instead of two), every answer still names a source,
+the gate still refuses all 5 out-of-scope questions (distances 0.825-0.934,
+still clear of the 0.6 cutoff), and every citation still points at a document
+that actually contains the answer. The only visible side effect is cosmetic:
+`Sources retrieved` lists shifted slightly (e.g. `dining_north_kitchen_followup.txt`
+and `admin_declaring_a_major.txt` appear where different files did before),
+because re-chunking changed the embeddings, but the top hit and the cited
+source for every question stayed correct.
 
 ## What's Still Broken
 
