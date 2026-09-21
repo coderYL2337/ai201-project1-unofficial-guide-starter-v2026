@@ -129,8 +129,19 @@ def paragraph_split(
     22-character chunk nobody could answer a question from. `MIN_CHUNK_SIZE`
     forces a chunk to reach a minimum length before it's allowed to close,
     even if that means going over `chunk_size` once.
+
+    Week 2 fix: that floor only guards a chunk closing early to make room for
+    a paragraph still to come — it did nothing for a document's *last*
+    paragraph, which always flushed once the loop ended, no matter how short
+    it was. A trailing "Hours are 7:00am to 8:00pm..." line was ending up as
+    its own sub-150-character chunk. The final flush now checks its own
+    length and, if it's under `MIN_CHUNK_SIZE`, merges backward into the
+    chunk before it instead of standing alone. Raised `MIN_CHUNK_SIZE` from
+    80 to 150 in the same pass — 80 was tuned only against the title-fragment
+    problem it was first written for, and every chunk this backward-merge
+    needed to catch was 80-137 characters, still above the old floor.
     """
-    MIN_CHUNK_SIZE = 80
+    MIN_CHUNK_SIZE = 150
 
     chunk_size = chunk_size or config.CHUNK_SIZE
     chunks: list[Chunk] = []
@@ -144,13 +155,24 @@ def paragraph_split(
         current: list[str] = []
         current_len = 0
 
-        def flush():
+        def flush(final: bool = False):
             nonlocal index
             if not current:
                 return
+            text = "\n\n".join(current)
+            if final and len(text) < MIN_CHUNK_SIZE and chunks and chunks[-1].source == doc.source:
+                previous = chunks[-1]
+                chunks[-1] = Chunk(
+                    text=previous.text + "\n\n" + text,
+                    source=previous.source,
+                    index=previous.index,
+                    produced_by=previous.produced_by,
+                )
+                current.clear()
+                return
             chunks.append(
                 Chunk(
-                    text="\n\n".join(current),
+                    text=text,
                     source=doc.source,
                     index=index,
                     produced_by="chunker.py::split_documents",
@@ -166,7 +188,7 @@ def paragraph_split(
                 current_len = 0
             current.append(para)
             current_len += len(para) + 2
-        flush()
+        flush(final=True)
 
     return chunks
 
