@@ -188,66 +188,113 @@ the fragment was actually gone rather than just hidden.
 
 ## Run Log — Before
 
-<!-- Your five criteria, three runs each. `python run_eval.py --label before`
-     runs the questions, puts the OUT_OF_SCOPE ones through the gate, and
-     writes it all into results/ for you. Targets come from criteria.md; the
-     verdict column is your call.
-
-     Criterion 3 is measured in one deterministic pass rather than three, so
-     the same number goes in all three run columns. That's correct, not lazy.
-
-     Milestone 1. -->
+Full run log: [`results/run_2026-09-20_1620_before.md`](results/run_2026-09-20_1620_before.md),
+produced by `run_eval.py::main` (criteria 1, 2, 5) and `run_eval.py::check_out_of_scope`
+(criterion 3). Criterion 4 isn't something `run_eval.py` measures — it's a
+property of the chunks themselves, counted directly from `chunker.py::paragraph_split`'s
+output, so it doesn't vary between runs either.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5 of 5 | 5 of 5 | 5 of 5 | MET |
+| 2. Every answer names a source | 5 of 5 | 5 of 5 | 5 of 5 | 5 of 5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5 of 5 | 5 of 5 | 5 of 5 | MET |
+| 4. No chunk shorter than 150 / longer than 600 chars, ≥4 of 5 sampled read as a complete thought | 0 chunks outside 150–600 | shortest chunk 71 chars | (same — deterministic) | (same — deterministic) | MISS |
+| 5. Source attribution is correct, not just present | 4 of 5 | 5 of 5 | 5 of 5 | 5 of 5 | MET |
 
-<!-- Underneath, paste the REAL output for each criterion from one of your
-     runs — the actual text your system produced, not a description of it.
-     Name the file and function that produced it. -->
+### Real output
+
+**Criterion 1** — the chunk retrieval actually returns, containing the expected phrase.
+`store.py::search` on "By what week can I still declare a pass/fail option?" returns
+`admin_pass_fail_option.txt#0`:
+
+```
+On the pass/fail option
+
+Any course outside your major can be taken pass/fail, and — the part nobody mentions — you can declare it as late as week eight, after you've seen your midterm. A pass needs a C- or better. Two per year, maximum eight across a degree.
+```
+
+**Criterion 2** — every answer names a source. Run 1, "How much printing quota does each
+student get per semester?" (`generate.py`, via `run_eval.py::main`):
+
+```
+Each student gets $30 of printing per semester (admin_printing_quota.txt).
+```
+
+**Criterion 3** — the gate on out-of-corpus questions, from `run_eval.py::check_out_of_scope`:
+
+| Out-of-scope question | Best distance | Gate |
+|---|---|---|
+| What is the capital of Mongolia? | 0.825 | refused |
+| How do I change the oil in a diesel engine? | 0.934 | refused |
+| Who won the 1994 World Cup? | 0.874 | refused |
+| What is the recommended dosage of ibuprofen for a headache? | 0.840 | refused |
+| How do I write a for loop in Rust? | 0.891 | refused |
+
+**Criterion 4** — from the Week 1 "Chunking Strategy" section above
+(`chunker.py::split_documents`): 115 chunks from 88 documents, averaging 242
+characters, **shortest 71, longest 397**. The shortest chunk alone is below
+this criterion's 150-character floor, so the target is missed on the length
+half even though the sampled chunks (see "Sample Chunks" above) all read as
+complete thoughts.
+
+**Criterion 5** — the source named is the one that actually contains the answer, not
+just any plausibly-related file. Run 1, "Are CS 210 exams based on the textbook or on
+lecture material?" retrieved both `course_cs_210.txt` and `course_cs_210_exams.txt`,
+and the answer cites both:
+
+```
+CS 210 exams are drawn from lecture material rather than the textbook (source: `course_cs_210.txt` and `course_cs_210_exams.txt`).
+```
+
+Checking the documents directly: both contain "all drawn from lecture material rather
+than the textbook" verbatim, so citing either (or both) is correct — this was the
+question I expected to be hardest to score cleanly, per `criteria.md`, and it held up.
 
 ## Verdicts
 
-<!-- MET or MISSED for each of the five, against the target you wrote last
-     week — not a new one. Plus a sentence on how you decided. That sentence
-     matters most where it was close.
-
-     If your target said 4 of 5 and your runs came out 4, 3, 4, that's a MISS.
-     The target has to hold, not show up occasionally.
-
-     Milestone 2. -->
-
 | # | Criterion | Verdict | How I decided |
 |---|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-| 5 |  |  |  |
+| 1 | Retrieved chunks contain the answer (target: 4 of 5) | MET | All 3 runs in the log came back 5 of 5 — every question's retrieved chunks included the one containing the `expects` phrase, not just 4 — so the target holds with room to spare. |
+| 2 | Every answer names a source (target: 5 of 5) | MET | All 3 runs came back 5 of 5; every one of the 15 answers in the run log names at least one source file, exactly what the target requires. |
+| 3 | The relevance gate stops out-of-corpus questions (target: 4 of 5) | MET | The gate refused all 5 `OUT_OF_SCOPE` questions in the one deterministic pass, clearing the 4-of-5 target with none in the borderline zone (best distance 0.825, worst 0.934, both well above the 0.6 cutoff). |
+| 4 | No chunk shorter than 150 / longer than 600 chars, ≥4 of 5 sampled read as a complete thought (target: 0 chunks outside 150–600) | MISSED | The Week 1 chunking stats show a shortest chunk of 71 characters, under the 150-character floor I set — the sampled chunks all read as complete thoughts, but the length half of the target is violated, so I'm calling the whole criterion missed rather than half-crediting it. |
+| 5 | Source attribution is correct, not just present (target: 4 of 5) | MET | All 3 runs came back 5 of 5; for every question I checked the cited file(s) against the actual corpus text and the `expects` phrase was verbatim in each one, including the CS 210 case I expected to be hardest. |
 
 ## Diagnoses
 
-<!-- For each miss: which stage caused it, and how. The stage alone isn't
-     enough — you need the mechanism.
+**Criterion 4 — chunk length floor (MISSED)**
 
-     Not a diagnosis: "Question 3 didn't work."
-     A diagnosis:     "Question 3 asks about laundry costs. The answer is in
-                       one sentence that got split across two chunks, so
-                       neither chunk on its own contains it."
+**Stage: chunking** (`chunker.py::paragraph_split`).
 
-     The five stages: loading → chunking → embedding → retrieval → generation.
+The 80-character floor I added in Week 1 only fires when there's a *next*
+paragraph left to merge into the current chunk — it stops a chunk from
+closing early while more content is still coming. It does nothing for the
+*last* paragraph of a document, because there's nothing left to merge it
+with; whatever that final paragraph's length is, it closes as its own chunk
+regardless of the floor.
 
-     Look for a pattern. If three misses all ask about numbers, that's one
-     problem, not three.
+That's exactly the shape of all 23 chunks under 150 characters: every one is
+the trailing `#1` chunk of a two-paragraph post, where the post's last
+paragraph is a short tag-on line. `dining_pellew_dining_hall.txt#1` (71
+characters) is the shortest example —
 
-     Missed nothing? Say so, then say honestly whether your targets were set
-     low, and which one you'd tighten and to what.
+```
+Hours are 7:00am to 8:00pm daily. Costs one meal swipe, or $11.75 cash.
+```
 
-     Milestone 3. -->
+— the hours/cost line at the end of a dining post, or (in the course
+documents) a one-line "expect N hours a week" or "one piece of advice" tag.
+This is one problem, not 23: the floor only guards against merging *forward*,
+never against a short *final* paragraph with nothing after it.
+
+No other criterion was missed, so there's no diagnosis to write for 1, 2, 3,
+or 5 — but criterion 4's own target may have been set a little tight for this
+corpus: several of these trailing lines (like the `dining_pellew_dining_hall.txt`
+hours/cost line) are genuinely one complete, self-contained fact, just a short
+one. A 100-character floor instead of 150 would still catch the 22-character
+title fragments Week 1 was written to avoid, without flagging every short but
+complete trailing sentence as a failure.
 
 ## The Improvement
 
