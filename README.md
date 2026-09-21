@@ -173,6 +173,22 @@ until it reaches that length, even if that means going over 350 once. I then
 checked the shortest chunk in the corpus myself (71 characters) to confirm
 the fragment was actually gone rather than just hidden.
 
+**3.** In week 2, I had Copilot fill in the run log tables against
+`results/run_2026-09-20_1620_before.md`, and it initially padded criterion 4
+with a chunk-length count from a script it ran on its own rather than from
+that file — I pushed back and had it redo the table using only evidence
+already in the run log and my Week 1 README, which is the version above. For
+the diagnosis, I asked it to explain *why* the shortest chunk was 71
+characters instead of just reporting that it was; it traced the mechanism to
+`paragraph_split`'s `MIN_CHUNK_SIZE` floor only guarding a chunk from closing
+early to make room for a *following* paragraph, never applying to a
+document's *last* paragraph, which flushes at whatever length it is
+regardless. I had it make one change from that diagnosis — raise the floor to
+150 and merge an undersized final paragraph backward into the previous chunk
+— then re-ran `chunker.py::split_documents` and `python app.py index` myself
+to confirm the fix actually closed the gap (71 → 157 shortest, 0 chunks left
+under 150) before accepting the run log it wrote for "after."
+
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
      claims earns nothing.
@@ -355,17 +371,49 @@ source for every question stayed correct.
 
 ## What's Still Broken
 
-<!-- For each criterion still missed after your fix: what you'd do about it,
-     and why you stopped where you did.
+All 5 criteria show MET after the fix, so nothing is failing its target right
+now — but that's not the same as nothing left to worry about:
 
-     "I ran out of time" is fine if it's true. Pretending nothing is left is
-     not.
-
-     Milestone 5. -->
+- **No automated scorer.** Every verdict above, both weeks, came from me
+  reading `run_eval.py`'s output and cross-checking source files by hand.
+  `scorer.py` never got built. That's fine for 5 questions I already know the
+  answers to, but it doesn't scale, and it means someone re-grading this has
+  to redo the same manual check rather than trust a script. I stopped here
+  because the manual check was still fast enough at this scale to not be the
+  bottleneck — I'd build it before adding a sixth question, not before this
+  submission.
+- **The backward-merge fix has a gap I didn't hit but didn't close either:**
+  a document whose *only* paragraph is under 150 characters has nothing to
+  merge backward into (`chunks[-1]` wouldn't belong to that document yet) and
+  would still emit as its own short chunk. No document in `campus_life`
+  triggers this today — I checked — but the fix is only proven against the
+  failure mode I actually saw, not against every way a chunk could end up
+  short.
+- **The out-of-scope test questions were never close calls.** Every one
+  (Mongolia's capital, an oil change, a World Cup winner) scored above 0.82
+  against in-corpus questions under 0.39 — a gap so wide that criterion 3
+  hasn't really been stress-tested near the 0.6 cutoff. I'd want a harder
+  out-of-scope question (something adjacent to the corpus, like a different
+  school's pass/fail policy) before I'd trust the gate near its edges.
 
 ## What I'd Do Differently
 
-<!-- Knowing what you know now — which of your five criteria would you write
-     differently, and why?
+**Criterion 4** is the one I'd rewrite. Bundling a hard length range (150–600
+characters, zero exceptions allowed) with a fuzzier "≥4 of 5 read as a
+complete thought" judgment made one criterion do two jobs, and the length
+half turned out to be the one that actually broke — tuned against the
+title-fragment failure I'd already fixed in Week 1, not against trailing
+short paragraphs I hadn't seen yet. I'd split it into two: a hard length
+bound I set *after* running the fallback chunker once to see the real
+distribution (not a number I guessed at), and a separate, always-manually-
+judged "reads as a complete thought" check that doesn't pretend to be a
+strict pass/fail.
 
-     Milestone 5. -->
+**Criteria 1, 2, 3, and 5** all landed at 5 of 5 against targets of 4 of 5 —
+comfortable both weeks, before and after the fix. In hindsight I set them
+looser than the corpus actually required: the in-corpus/out-of-corpus
+distance gap (under 0.39 vs. over 0.82) was clean enough from the first
+measurement that 4 of 5 was never really at risk. I'd tighten criterion 3 to
+5 of 5, and add one deliberately-adjacent out-of-scope question instead of
+five uniformly unrelated ones, so the target actually tests the boundary
+instead of the easy middle of it.
